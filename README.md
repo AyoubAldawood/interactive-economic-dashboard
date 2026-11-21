@@ -1,12 +1,16 @@
 # Interactive Economic Dashboard — Data Visualization
 
-An interactive dashboard designed to help the general public explore and compare the world's economies in a clear, accessible, and user-friendly way. It covers 8 economic indicators for 173 countries: rank countries, see how they're spread, and check how two indicators relate.
+**An interactive dashboard designed to help the general public explore and compare the world's economies in a clear, accessible, and user-friendly way.**
 
-**[Open the live dashboard](https://ayoubaldawood.github.io/interactive-economic-dashboard/)**
+It covers 8 economic indicators for 173 countries: rank countries, see how they're spread, and check how two indicators relate.
+
+**[View live dashboard](https://ayoubaldawood.github.io/interactive-economic-dashboard/)**
 
 ![The dashboard on one screen: countries ranked by GDP, a histogram of GDP, and a scatter plot of inflation and interest rates](images/dashboard.png)
 
-## What you can do
+<p align="center"><em>Default view: all three charts on one screen</em></p>
+
+## What You Can Do
 
 - **Rank countries** on any indicator: top 10, 25, 50, or all 173.
 - **See the spread** of the same indicator in a histogram, with the middle value, the highest, and the lowest spelled out.
@@ -17,7 +21,9 @@ An interactive dashboard designed to help the general public explore and compare
 
 ![Saudi Arabia and Japan highlighted in all three charts](images/dashboard-highlight.png)
 
-## Design decisions
+<p align="center"><em>Highlighting countries: Saudi Arabia and Japan stand out in all three charts at once</em></p>
+
+## Design Decisions
 
 - **Built for the general public.** Chart titles update with your choices and show the indicator names in italics, each chart names its unit, bars show their values, and statistics come in plain words (the correlation is explained on a scale from 0 to 1).
 - **Everything on one screen.** On a desktop, the three charts sit side by side and size themselves to the window, so a highlight shows up in every chart without scrolling. On phones, the charts stack.
@@ -27,7 +33,7 @@ An interactive dashboard designed to help the general public explore and compare
 - **Missing data stays visible.** Each chart says how many countries have data; interest rates, for example, are missing for 11 countries.
 - **Accessible.** Colors are checked for contrast, every bar and dot has a screen-reader description, every value is also in the table, and the page follows your system's dark mode.
 
-## What the data shows
+## Key Findings
 
 - **Two economies dominate.** The US and China produce 44% of the combined GDP of all 173 countries, and the top 10 produce 67%. Half the countries have an economy smaller than $72 billion.
 - **Living standards vary enormously.** GDP per person ranges from about $140 in Burundi to over $100,000 in Luxembourg, Ireland, and Switzerland. Half the countries are below $7,540.
@@ -43,7 +49,7 @@ The data is based on the [World Economic Dataset (2025) on Kaggle](https://www.k
 - **GDP growth is left out.** Most countries report growth over the previous quarter (China shows 1.1%), while some report an annualized rate (the US shows 3.0%), and 72 countries have no value. Compared side by side, the figures would mislead.
 - Countries without a value for an indicator are left out of that chart; nothing is filled in.
 
-## How it's built
+## How It's Built
 
 - `dashboard.py` loads the data with pandas, calculates GDP per person, and builds every chart with Altair, which produces Vega-Lite specifications.
 - `page_template.html` holds the page layout and a short JavaScript script that connects the controls to the charts, sizes the charts to the screen, and writes the summaries and the table.
@@ -68,3 +74,7 @@ Then open `index.html` in a browser.
 | `country_economics_data.csv` | The data |
 | `requirements.txt` | Python packages |
 | `images/` | Screenshots |
+
+## Skills Demonstrated
+
+Data visualization · Interaction design · Responsive design · UX writing · Accessibility · Data analysis · Python (pandas) · Altair (Vega-Lite)
