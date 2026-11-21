@@ -1,0 +1,571 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Interactive Economic Dashboard</title>
+<meta name="description" content="Rank __N_COUNTRIES__ countries on __N_INDICATORS__ economic indicators, see how they are spread, and compare two indicators at once.">
+<style>
+  :root {
+    color-scheme: light;
+    --page: #f9f9f7;
+    --surface: #fcfcfb;
+    --ink: #0b0b0b;
+    --ink2: #52514e;
+    --muted: #6f6d68;
+    --line: #e1e0d9;
+    --field: #c3c2b7;
+    --border: rgba(11, 11, 11, 0.10);
+    --accent: #2a78d6;
+    --hl-row: rgba(42, 120, 214, 0.10);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      color-scheme: dark;
+      --page: #0d0d0d;
+      --surface: #1a1a19;
+      --ink: #f0efec;
+      --ink2: #c3c2b7;
+      --muted: #a3a29a;
+      --line: #2c2c2a;
+      --field: #4a4a46;
+      --border: rgba(255, 255, 255, 0.10);
+      --accent: #3987e5;
+      --hl-row: rgba(57, 135, 229, 0.16);
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--page);
+    color: var(--ink);
+    font: 15px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  }
+  .page { max-width: 1240px; margin: 0 auto; padding: 28px 16px 48px; }
+  h1 { font-size: clamp(24px, 3.2vw, 30px); line-height: 1.2; margin: 0 0 6px; font-weight: 650; letter-spacing: -0.01em; }
+  .lede { margin: 0; color: var(--ink2); max-width: 72ch; }
+  a { color: var(--accent); }
+  a:hover { text-decoration-thickness: 2px; }
+
+  .filters {
+    display: flex; flex-wrap: wrap; align-items: flex-end; gap: 10px 16px;
+    margin: 18px 0 0; padding: 12px 16px;
+    background: var(--surface); border: 1px solid var(--border); border-radius: 12px;
+  }
+  .field { display: flex; flex-direction: column; gap: 4px; font-size: 12.5px; font-weight: 600; color: var(--ink2); }
+  .field.grow { flex: 1 1 300px; }
+  select, input[type="search"], button {
+    font: inherit; font-size: 14px; color: var(--ink);
+    background: var(--page); border: 1px solid var(--field); border-radius: 8px;
+    min-height: 36px; padding: 6px 10px;
+  }
+  select { padding-right: 28px; max-width: 100%; }
+  input[type="search"] { width: 100%; }
+  button { cursor: pointer; font-weight: 600; }
+  button:hover { background: var(--surface); }
+  :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .hint { flex: 1 1 100%; margin: 0; font-size: 12.5px; color: var(--muted); }
+
+  /* Phones: one column. Tablets and small laptops: ranking and relationship side by side,
+     spread below. Large screens: all three charts side by side, sized to fit the window. */
+  .grid { display: grid; grid-template-columns: minmax(0, 1fr); gap: 16px; margin-top: 14px; align-items: start; }
+  /* The ranking and the spread share one card and one indicator picker. */
+  .panels { display: grid; grid-template-columns: minmax(0, 1fr); margin-top: 4px; }
+  .panel { min-width: 0; }
+  .panel + .panel { border-top: 2px solid var(--field); margin-top: 14px; padding-top: 14px; }
+  .panel-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 6px 12px; }
+  .panel h3 { font-size: 15px; line-height: 1.3; margin: 0; font-weight: 650; }
+  .field.inline { flex-direction: row; align-items: center; gap: 8px; }
+  .field.inline select { width: auto; }
+  .panel-controls { display: flex; margin: 8px 0 4px; }
+  .controls.single { grid-template-columns: minmax(0, 320px); }
+  .sub:empty { display: none; }
+  @media (min-width: 960px) {
+    .panels { grid-template-columns: minmax(0, 1fr) minmax(0, 0.9fr); }
+    .panel + .panel { border-top: 0; margin-top: 0; padding-top: 0; border-left: 2px solid var(--field); margin-left: 16px; padding-left: 16px; }
+    #card-one > h2, #card-one > .sub { text-align: center; }
+    #card-one > .controls.single { justify-content: center; }
+    #card-one > .controls.single .field { align-items: center; }
+  }
+  @media (min-width: 1200px) {
+    .page { max-width: 1880px; padding: 20px 24px 40px; }
+    h1 { font-size: 26px; }
+    .lede { max-width: none; }
+    .hint { flex: 1 1 280px; align-self: center; }
+    .grid { grid-template-columns: minmax(0, 1.9fr) minmax(0, 1.15fr); align-items: stretch; }
+    #card-table { grid-column: 1 / -1; }
+  }
+  .card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 16px 16px 12px; min-width: 0; }
+  .card h2 { font-size: 17px; line-height: 1.3; margin: 0; font-weight: 650; }
+  .sub { margin: 3px 0 0; font-size: 13px; color: var(--ink2); }
+  .controls { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px 14px; margin: 12px 0 8px; }
+  .controls select { width: 100%; }
+  .vis { width: 100%; min-height: 120px; }
+  .vis .vega-embed { width: 100%; }
+  .finding { margin: 8px 0 0; font-size: 14px; }
+  .note { margin: 4px 0 0; font-size: 12.5px; color: var(--muted); }
+
+  details summary { cursor: pointer; font-weight: 650; font-size: 15px; }
+  .table-wrap { overflow-x: auto; margin-top: 12px; }
+  table.data { border-collapse: collapse; width: 100%; font-size: 13.5px; }
+  table.data th, table.data td { padding: 6px 10px; border-bottom: 1px solid var(--line); text-align: left; white-space: nowrap; }
+  table.data td.num, table.data th.num { text-align: right; font-variant-numeric: tabular-nums; }
+  table.data th button { all: unset; cursor: pointer; font-weight: 650; color: var(--ink2); }
+  table.data th button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  table.data tr.hl td { background: var(--hl-row); font-weight: 600; }
+
+  footer { margin-top: 28px; font-size: 13px; color: var(--ink2); max-width: 100ch; }
+  footer p { margin: 6px 0; }
+
+  /* Tooltip: the value leads, the label follows. */
+  #vg-tooltip-element.vg-tooltip.custom-theme {
+    background: var(--surface); color: var(--ink); border: 1px solid var(--border); border-radius: 8px;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12); padding: 8px 10px; font: 13px/1.4 system-ui, -apple-system, "Segoe UI", sans-serif;
+    max-width: 320px;
+  }
+  .vg-tooltip .tt-title { font-weight: 650; margin-bottom: 4px; }
+  .vg-tooltip table { border-collapse: collapse; }
+  .vg-tooltip td { padding: 1px 0; vertical-align: top; }
+  .vg-tooltip td.tt-v { font-weight: 650; padding-right: 10px; white-space: nowrap; font-variant-numeric: tabular-nums; }
+  .vg-tooltip td.tt-k { color: var(--ink2); }
+</style>
+<script src="https://cdn.jsdelivr.net/npm/vega@5.30.0"></script>
+<script src="https://cdn.jsdelivr.net/npm/vega-lite@5.20.1"></script>
+<script src="https://cdn.jsdelivr.net/npm/vega-embed@6.26.0"></script>
+</head>
+<body>
+<main class="page">
+  <header>
+    <h1>Explore and compare the world's economies</h1>
+    <p class="lede">An interactive dashboard of __N_INDICATORS__ economic indicators for __N_COUNTRIES__ countries. Rank countries, see how they're spread, and check how two indicators relate.</p>
+  </header>
+
+  <section class="filters" aria-label="Filters for every chart">
+    <label class="field">Region <select id="region"></select></label>
+    <label class="field">Subregion <select id="subregion"></select></label>
+    <label class="field grow">Highlight countries
+      <input id="search" type="search" autocomplete="off" placeholder="Type or click countries, e.g. Saudi Arabia, Japan">
+    </label>
+    <button id="clear" type="button">Clear</button>
+    <p class="hint">Tip: click a bar, a dot, or a histogram bar to highlight countries in every chart. Click again to remove them.</p>
+  </section>
+
+  <div class="grid" id="grid">
+    <section class="card" id="card-one" aria-labelledby="one-title">
+      <h2 id="one-title">How countries compare</h2>
+      <p class="sub" id="one-sub"></p>
+      <div class="controls single">
+        <label class="field">Indicator for both charts <select id="metric"></select></label>
+      </div>
+      <div class="panels">
+        <div class="panel" id="panel-rank">
+          <div class="panel-head"><h3 id="rank-title">Top countries</h3></div>
+          <div class="panel-controls">
+            <label class="field inline">Show
+              <select id="topn">
+                <option value="10">Top 10</option>
+                <option value="25">Top 25</option>
+                <option value="50">Top 50</option>
+                <option value="0">All countries</option>
+              </select>
+            </label>
+          </div>
+          <p class="sub" id="rank-sub"></p>
+          <div class="vis" id="vis-rank"></div>
+        </div>
+        <div class="panel" id="panel-spread">
+          <div class="panel-head"><h3 id="spread-title">How countries are spread</h3></div>
+          <p class="sub" id="spread-sub"></p>
+          <div class="vis" id="vis-spread"></div>
+          <p class="finding" id="spread-finding"></p>
+        </div>
+      </div>
+    </section>
+
+    <section class="card" id="card-rel" aria-labelledby="rel-title">
+      <h2 id="rel-title">How two indicators relate</h2>
+      <p class="sub" id="rel-sub"></p>
+      <div class="controls">
+        <label class="field">Across (horizontal) <select id="mx"></select></label>
+        <label class="field">Up (vertical) <select id="my"></select></label>
+      </div>
+      <div class="vis" id="vis-rel"></div>
+      <p class="finding" id="rel-finding"></p>
+      <p class="note" id="rel-note"></p>
+    </section>
+
+    <section class="card" id="card-table">
+      <details id="table-details">
+        <summary>See the numbers as a table</summary>
+        <p class="note" id="table-note"></p>
+        <div class="table-wrap"><table class="data" id="table"></table></div>
+      </details>
+    </section>
+  </div>
+
+  <footer>
+    <p><strong>Data:</strong> based on the <a href="https://www.kaggle.com/datasets/ahmadfirman/world-economic-2025/data">World Economic Dataset (2025) on Kaggle</a>, covering __N_COUNTRIES__ countries. GDP is in US$ billions. GDP per person is calculated from GDP and population, in US$. The other indicators are percentages, with budget balance, government debt, and current account as shares of GDP. GDP growth is left out: countries report it in different ways, and 72 of them have no value. Countries without a value for an indicator are left out of that chart.</p>
+    <p>Built with Python (pandas, Altair) and Vega-Lite · <a href="https://github.com/AyoubAldawood/interactive-economic-dashboard">Code on GitHub</a></p>
+  </footer>
+</main>
+
+<script>
+const APP = /*__PAYLOAD__*/;
+const IND = APP.indicators;
+const DATA = APP.data;
+const KEYS = Object.keys(IND);
+const LIMITS = APP.limits;
+const state = {
+  metric: APP.defaults.metric, top: APP.defaults.top, mx: APP.defaults.mx, my: APP.defaults.my,
+  region: "All", sub: "All", hl: [],
+};
+const views = {};
+const seq = { rank: 0, rel: 0, spread: 0 };
+const $ = (id) => document.getElementById(id);
+const darkQuery = window.matchMedia("(prefers-color-scheme: dark)");
+const theme = () => APP.themes[darkQuery.matches ? "dark" : "light"];
+
+// ---------- helpers ----------
+function esc(s) {
+  return String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+}
+function lower(label) { return label.startsWith("GDP") ? label : label.charAt(0).toLowerCase() + label.slice(1); }
+function has(d, k) { return typeof d[k] === "number" && Number.isFinite(d[k]); }
+function inScope(d) {
+  return (state.region === "All" || d.Region === state.region) && (state.sub === "All" || d.Subregion === state.sub);
+}
+// Set a title from plain text and {em: "..."} parts (indicator names are shown in italics).
+function setTitle(el, ...parts) {
+  el.replaceChildren(...parts.map((p) => typeof p === "string"
+    ? document.createTextNode(p) : Object.assign(document.createElement("em"), { textContent: p.em })));
+}
+function scopeName() { return state.sub !== "All" ? state.sub : state.region !== "All" ? state.region : ""; }
+function fmtValue(k, v) {
+  if (!Number.isFinite(v)) return "—";
+  const m = IND[k];
+  const decimals = (m.fmt.match(/\.(\d)f/) || [0, 0])[1];
+  return m.prefix + v.toLocaleString("en-US", { minimumFractionDigits: +decimals, maximumFractionDigits: +decimals }) + m.suffix;
+}
+// Same transforms the charts use to bin and draw spread-out values.
+function fwd(scale, v) {
+  if (scale === "log") return Math.log10(v);
+  if (scale === "symlog") return Math.sign(v) * Math.log10(1 + Math.abs(v));
+  return v;
+}
+
+// Tooltip: the country as a title, then value-first rows; indicator names fill in the generic keys.
+function formatTooltip(value) {
+  if (value === null || typeof value !== "object") return esc(value);
+  const names = { __V__: IND[state.metric].label, __X__: IND[state.mx].label, __Y__: IND[state.my].label };
+  let head = "";
+  const rows = [];
+  for (const [k, v] of Object.entries(value)) {
+    if (k === "Country") { head = `<div class="tt-title">${esc(v)}</div>`; continue; }
+    rows.push(`<tr><td class="tt-v">${esc(v)}</td><td class="tt-k">${esc(names[k] || k)}</td></tr>`);
+  }
+  return head + `<table>${rows.join("")}</table>`;
+}
+
+// ---------- sizing: on large screens the charts share the window height ----------
+function layoutMode() { return window.innerWidth >= 1200 ? "wide" : window.innerWidth >= 960 ? "medium" : "narrow"; }
+const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
+// Room left for a chart: the window height below the card's top, minus the card's text and
+// controls above and below the chart (measured, so it works whatever the card holds).
+function chartRoom(chart) {
+  const vis = $("vis-" + chart), card = vis.closest(".card"), cs = getComputedStyle(card);
+  const cardTop = card.getBoundingClientRect().top + window.scrollY;
+  const above = vis.getBoundingClientRect().top - card.getBoundingClientRect().top;
+  let below = parseFloat(cs.paddingBottom) + parseFloat(cs.borderBottomWidth);
+  for (let el = vis.nextElementSibling; el; el = el.nextElementSibling) {
+    const s = getComputedStyle(el);
+    below += el.offsetHeight + parseFloat(s.marginTop) + parseFloat(s.marginBottom);
+  }
+  return window.innerHeight - 16 - cardTop - above - below;
+}
+function chartSize(chart) {
+  const mode = layoutMode();
+  if (mode !== "wide") {
+    if (chart === "rel") return { height: window.innerWidth < 600 ? 340 : 430 };
+    if (chart === "spread") return { height: 230 };
+    return {};
+  }
+  const room = chartRoom(chart);
+  if (chart === "rel") return { height: clamp(Math.round(room - 58), 260, 560) };
+  if (chart === "spread") return { height: clamp(Math.round(room - 90), 200, 460) };
+  if (state.top === 10 || state.top === 25) {
+    return { step: clamp(Math.floor((room - 34) / (state.top + 0.4)), 12, state.top === 10 ? 26 : 22) };
+  }
+  return {};
+}
+function sizeKey(size) { return JSON.stringify(size); }
+
+// ---------- charts ----------
+function variant(chart) {
+  if (chart === "rank") return "n" + state.top;
+  if (chart === "rel") return IND[state.mx].scale + "|" + IND[state.my].scale;
+  return IND[state.metric].scale;
+}
+
+function push(chart) {
+  const entry = views[chart];
+  if (!entry) return;
+  const t = theme();
+  const s = {
+    region: state.region, subregion: state.sub, hl: state.hl,
+    c_main: t.main, c_soft: t.soft, c_dim: t.dim, c_ink: t.ink, c_muted: t.muted, c_surface: t.surface,
+  };
+  if (chart === "rel") { s.mx = state.mx; s.my = state.my; } else { s.metric = state.metric; }
+  for (const [k, v] of Object.entries(s)) {
+    try { entry.view.signal(k, v); } catch (e) { /* this chart doesn't use that parameter */ }
+  }
+  entry.view.runAsync();
+}
+
+async function draw(chart, force = false) {
+  const key = variant(chart);
+  const size = chartSize(chart);
+  const cur = views[chart];
+  if (cur && cur.key === key && cur.size === sizeKey(size) && !force) { push(chart); return; }
+  const mine = ++seq[chart];
+  const spec = JSON.parse(JSON.stringify(APP.specs[chart][key]));
+  spec.datasets = { countries: DATA };
+  if (size.height) spec.height = size.height;
+  if (size.step) spec.height = { step: size.step };
+  if (cur) { cur.view.finalize(); delete views[chart]; }
+  const res = await vegaEmbed("#vis-" + chart, spec, {
+    actions: false, renderer: "svg", config: theme().vega, logLevel: vega.Error,
+    tooltip: { theme: "custom", formatTooltip },
+  });
+  if (mine !== seq[chart]) { res.view.finalize(); return; }
+  views[chart] = { view: res.view, key, size: sizeKey(size) };
+  res.view.addEventListener("click", (event, item) => {
+    const d = item && item.datum;
+    if (!d) return;
+    if (d.Name) toggleCountry(d.Name);
+    else if (chart === "spread" && d.b0 !== undefined) selectBin(d);
+  });
+  push(chart);
+}
+function drawAll(force = false) { return Promise.all(["rank", "spread", "rel"].map((c) => draw(c, force))); }
+
+// ---------- text that follows the controls ----------
+function ranks(values) {
+  const order = values.map((v, i) => [v, i]).sort((a, b) => a[0] - b[0]);
+  const r = new Array(values.length);
+  for (let i = 0; i < order.length;) {
+    let j = i;
+    while (j + 1 < order.length && order[j + 1][0] === order[i][0]) j++;
+    for (let k = i; k <= j; k++) r[order[k][1]] = (i + j) / 2 + 1;
+    i = j + 1;
+  }
+  return r;
+}
+function pearson(a, b) {
+  const n = a.length, ma = a.reduce((s, x) => s + x, 0) / n, mb = b.reduce((s, x) => s + x, 0) / n;
+  let ab = 0, aa = 0, bb = 0;
+  for (let i = 0; i < n; i++) { const da = a[i] - ma, db = b[i] - mb; ab += da * db; aa += da * da; bb += db * db; }
+  return ab / Math.sqrt(aa * bb);
+}
+// Plain-language summary of how two indicators move together (a rank correlation, so a few
+// extreme countries can't dominate it).
+function finding(rows) {
+  if (state.mx === state.my) return "Pick two different indicators to compare them.";
+  const pairs = rows.filter((d) => has(d, state.mx) && has(d, state.my));
+  if (pairs.length < 8) return "Too few countries have both values to describe a trend.";
+  const r = pearson(ranks(pairs.map((d) => d[state.mx])), ranks(pairs.map((d) => d[state.my])));
+  const a = Math.abs(r);
+  const lx = lower(IND[state.mx].label), ly = lower(IND[state.my].label);
+  const score = r.toFixed(2).replace("-", "−");
+  if (a < 0.1) return `There's no clear link between ${lx} and ${ly} (correlation ${score}, where 0 means no link).`;
+  const strength = a < 0.3 ? "weak" : a < 0.5 ? "moderate" : "strong";
+  const scale = r > 0 ? "where 0 is no link and 1 is perfect" : "where 0 is no link and −1 is perfectly opposite";
+  return `Countries with a higher ${lx} tend to have a ${r > 0 ? "higher" : "lower"} ${ly}: a ${strength} link (correlation ${score}, ${scale}). This shows a link, not a cause.`;
+}
+
+// Middle value, highest, and lowest, in plain words.
+function keyNumbers(ranked) {
+  if (!ranked.length) return "No countries here have data for this indicator.";
+  const vals = ranked.map((d) => d[state.metric]).sort((a, b) => a - b);
+  const n = vals.length, mid = n % 2 ? vals[(n - 1) / 2] : (vals[n / 2 - 1] + vals[n / 2]) / 2;
+  const top = ranked[0], low = ranked[ranked.length - 1];
+  return `Half the countries are below ${fmtValue(state.metric, mid)} (the middle value). ` +
+    `Highest: ${top.Name}, ${fmtValue(state.metric, top[state.metric])}. Lowest: ${low.Name}, ${fmtValue(state.metric, low[state.metric])}.`;
+}
+
+function scaleNote(k) {
+  if (IND[k].scale === "log") return "Log scale: each step is 10 times larger.";
+  if (IND[k].scale === "symlog") return "Compressed scale, so a few extreme values don't squash the rest.";
+  return "";
+}
+
+function updateText() {
+  const rows = DATA.filter(inScope);
+  const where = scopeName() ? ` in ${scopeName()}` : "";
+  const m = IND[state.metric];
+
+  // Ranking
+  const ranked = rows.filter((d) => has(d, state.metric)).sort((a, b) => b[state.metric] - a[state.metric]);
+  const shown = state.top ? Math.min(state.top, ranked.length) : ranked.length;
+  setTitle($("one-title"), "How countries compare on ", { em: lower(m.label) }, where);
+  $("one-sub").textContent = `${m.unit_long} · ${ranked.length} of ${rows.length} countries have data for this indicator`;
+  $("rank-title").textContent = state.top && state.top < ranked.length ? `Top ${shown} countries` : "All countries";
+  const outside = state.top ? ranked.slice(state.top).filter((d) => state.hl.includes(d.Name)).length : 0;
+  let extraText = "";
+  if (outside && state.hl.length <= LIMITS.extra) {
+    extraText = ` · ${outside} highlighted ${outside === 1 ? "country" : "countries"} added below the top ${state.top}`;
+  } else if (outside) {
+    extraText = ` · ${outside} highlighted ${outside === 1 ? "country is" : "countries are"} outside the top ${state.top}`;
+  }
+  $("rank-sub").textContent = extraText.replace(/^ · /, "");
+
+  // Spread
+  $("spread-title").textContent = "How countries are spread";
+  $("spread-sub").textContent = [scaleNote(state.metric), "Click a bar to highlight its countries."].filter(Boolean).join(" ");
+  $("spread-finding").textContent = keyNumbers(ranked);
+
+  // Relationship
+  const both = rows.filter((d) => has(d, state.mx) && has(d, state.my)).length;
+  setTitle($("rel-title"), "How ", { em: lower(IND[state.mx].label) }, " relates to ", { em: lower(IND[state.my].label) }, where);
+  $("rel-sub").textContent = `Each dot is a country · ${both} of ${rows.length} countries have data for both indicators`;
+  $("rel-finding").textContent = finding(rows);
+  const notes = ["Dashed line: overall trend. Gray lines: middle values, with half the countries on each side."];
+  if (scaleNote(state.mx) || scaleNote(state.my)) notes.push("Very spread-out axes are compressed so extreme countries don't squash the rest.");
+  $("rel-note").textContent = notes.join(" ");
+
+  renderTable(rows);
+}
+
+// ---------- table view ----------
+let sortKey = null, sortDir = -1;
+function renderTable(rows) {
+  const cols = ["Name", "Region", ...new Set([state.metric, state.mx, state.my])];
+  const key = sortKey && cols.includes(sortKey) ? sortKey : state.metric;
+  const sorted = rows.slice().sort((a, b) => {
+    if (key === "Name" || key === "Region") return sortDir * String(a[key]).localeCompare(String(b[key]));
+    const av = has(a, key) ? a[key] : null, bv = has(b, key) ? b[key] : null;
+    if (av === null && bv === null) return 0;
+    if (av === null) return 1;   // missing values always go last
+    if (bv === null) return -1;
+    return sortDir * (av - bv);
+  });
+  const table = $("table");
+  table.replaceChildren();
+  const thead = table.createTHead().insertRow();
+  for (const c of cols) {
+    const th = document.createElement("th");
+    th.scope = "col";
+    if (c !== "Name" && c !== "Region") th.className = "num";
+    const b = document.createElement("button");
+    const label = c === "Name" ? "Country" : c === "Region" ? "Region" : `${IND[c].label} (${IND[c].unit})`;
+    b.textContent = label + (c === key ? (sortDir < 0 ? " ↓" : " ↑") : "");
+    b.addEventListener("click", () => { if (key === c) sortDir = -sortDir; else { sortKey = c; sortDir = c === "Name" || c === "Region" ? 1 : -1; } renderTable(rows); });
+    th.appendChild(b);
+    th.setAttribute("aria-sort", c === key ? (sortDir < 0 ? "descending" : "ascending") : "none");
+    thead.appendChild(th);
+  }
+  const body = table.createTBody();
+  for (const d of sorted) {
+    const tr = body.insertRow();
+    if (state.hl.includes(d.Name)) tr.className = "hl";
+    for (const c of cols) {
+      const td = tr.insertCell();
+      if (c === "Name" || c === "Region") td.textContent = d[c];
+      else { td.className = "num"; td.textContent = has(d, c) ? fmtValue(c, d[c]) : "—"; }
+    }
+  }
+  $("table-note").textContent = `${rows.length} countries${scopeName() ? " in " + scopeName() : ""}, with the indicators shown in the charts. Click a column name to sort. A dash means no data.`;
+}
+
+// ---------- highlighting ----------
+function parseQuery(text) {
+  const names = new Set();
+  for (const raw of text.split(",")) {
+    const term = raw.trim().toLowerCase();
+    if (term.length < 2) continue;
+    const exact = DATA.find((d) => d.Name.toLowerCase() === term);
+    if (exact) { names.add(exact.Name); continue; }
+    for (const d of DATA) if (d.Name.toLowerCase().includes(term)) names.add(d.Name);
+  }
+  return [...names];
+}
+function setHighlight(names, syncInput) {
+  state.hl = names;
+  if (syncInput) $("search").value = names.join(", ");
+  updateText();
+  for (const c of ["rank", "spread", "rel"]) push(c);
+}
+function toggleCountry(name) {
+  const next = state.hl.includes(name) ? state.hl.filter((n) => n !== name) : [...state.hl, name];
+  setHighlight(next, true);
+}
+// Clicking a histogram bar highlights every country in that range; clicking it again clears it.
+function selectBin(bin) {
+  const scale = IND[state.metric].scale;
+  const inRange = (d) => {
+    const t = fwd(scale, d[state.metric]);
+    return t >= bin.b0 - 1e-9 && t < bin.b1 - 1e-9;
+  };
+  const rows = DATA.filter((d) => inScope(d) && has(d, state.metric) && (scale !== "log" || d[state.metric] > 0));
+  let names = rows.filter(inRange).map((d) => d.Name);
+  if (names.length < bin.n) {  // the top bin also holds values equal to its upper edge
+    names = rows.filter((d) => inRange(d) || Math.abs(fwd(scale, d[state.metric]) - bin.b1) < 1e-9).map((d) => d.Name);
+  }
+  const same = names.length === state.hl.length && names.every((n) => state.hl.includes(n));
+  setHighlight(same ? [] : names, true);
+}
+
+// ---------- controls ----------
+function fillSelect(el, options, value) {
+  el.replaceChildren();
+  for (const [v, label] of options) {
+    const o = document.createElement("option");
+    o.value = v; o.textContent = label;
+    el.appendChild(o);
+  }
+  el.value = value;
+}
+function fillSubregions() {
+  const list = state.region === "All" ? Object.values(APP.subregions).flat().sort() : APP.subregions[state.region];
+  if (!list.includes(state.sub)) state.sub = "All";
+  fillSelect($("subregion"), [["All", "All subregions"], ...list.map((s) => [s, s])], state.sub);
+}
+function onFilterChange() {
+  updateText();
+  for (const c of ["rank", "spread", "rel"]) push(c);
+}
+
+function init() {
+  const indicatorOptions = KEYS.map((k) => [k, IND[k].label]);
+  fillSelect($("metric"), indicatorOptions, state.metric);
+  fillSelect($("mx"), indicatorOptions, state.mx);
+  fillSelect($("my"), indicatorOptions, state.my);
+  fillSelect($("region"), [["All", "All regions"], ...Object.keys(APP.subregions).map((r) => [r, r])], state.region);
+  fillSubregions();
+  $("topn").value = String(state.top);
+
+  $("metric").addEventListener("change", (e) => { state.metric = e.target.value; updateText(); draw("rank"); draw("spread"); });
+  $("topn").addEventListener("change", (e) => { state.top = +e.target.value; updateText(); draw("rank"); });
+  $("mx").addEventListener("change", (e) => { state.mx = e.target.value; updateText(); draw("rel"); });
+  $("my").addEventListener("change", (e) => { state.my = e.target.value; updateText(); draw("rel"); });
+  $("region").addEventListener("change", (e) => { state.region = e.target.value; fillSubregions(); onFilterChange(); });
+  $("subregion").addEventListener("change", (e) => { state.sub = e.target.value; onFilterChange(); });
+  let timer = null;
+  $("search").addEventListener("input", (e) => {
+    clearTimeout(timer);
+    timer = setTimeout(() => setHighlight(parseQuery(e.target.value), false), 150);
+  });
+  $("clear").addEventListener("click", () => setHighlight([], true));
+  darkQuery.addEventListener("change", () => drawAll(true));
+  let resizeTimer = null;
+  window.addEventListener("resize", () => {
+    clearTimeout(resizeTimer);
+    resizeTimer = setTimeout(() => drawAll(), 200);
+  });
+
+  updateText();
+  return drawAll();
+}
+init();
+</script>
+</body>
+</html>
